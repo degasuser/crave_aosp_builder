@@ -336,6 +336,7 @@ jobs:
 
       # Send Build 'start' notification
     - name: Telegram Notification
+      if: ${{ false }}
       continue-on-error: true
       run: |
         send_telegram_message() {
@@ -526,7 +527,7 @@ jobs:
 
       # Send Build 'status' notification (Success)
     - name: Telegram Notification
-      if:  ${{ success() }}
+      if: ${{ false }}
       continue-on-error: true
       run: |
         send_telegram_message() {
@@ -548,7 +549,7 @@ jobs:
 
       # Send Build 'status' notification (Fail/Cancel)
     - name: Telegram Notification
-      if:  ${{ cancelled() || failure() }}
+      if: ${{ false }}
       continue-on-error: true
       run: |
         send_telegram_message() {
@@ -602,6 +603,7 @@ jobs:
 
       # Upload to Telegram
     - name: Upload Using telegram-upload
+      if: ${{ false }}
       run: |
         cd $PROJECTFOLDER
         crave ssh -- "export TG_UPLOAD_LIMIT="${{ secrets.TG_UPLOAD_LIMIT }}"; bash /opt/crave/telegram/upload.sh '${{ github.event.inputs.DEVICE_NAME }}' '${{ secrets.EXTRA_FILES }}'"
