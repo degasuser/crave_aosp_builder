@@ -519,6 +519,10 @@ jobs:
         echo "Repository: ${{ github.repository }}"; \
         echo "Run ID: ${{ github.run_id }}"; \
 
+        # Capture lunch/installclean bootstrap errors as well as compilation.
+        mkdir -p out; \
+        exec > >(tee out/degas-build.log) 2>&1; \
+
         # Build the ROM
         $LUNCH && \
         make installclean && \
