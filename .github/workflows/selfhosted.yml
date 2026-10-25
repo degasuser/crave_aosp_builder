@@ -597,9 +597,12 @@ jobs:
       run: |
         cd $PROJECTFOLDER
         crave ssh -- sleep 1
-        crave pull out/error.log
-        echo "Displaying out/error.log"
-        cat out/error.log
+        if crave pull out/degas-build.log; then
+          cat out/degas-build.log
+        else
+          crave pull out/error.log
+          cat out/error.log
+        fi
 
       # Upload to Telegram
     - name: Upload Using telegram-upload
