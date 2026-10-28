@@ -511,6 +511,10 @@ jobs:
           /opt/crave/resync.sh
         fi && \
 
+        # Select the prebuilt header provider in shared hardware consumers.
+        bash device/xiaomi/degas/tools/apply-build-patches.sh && \
+        python3 device/xiaomi/degas/tools/check-kernel-headers.py . && \
+
         # Set up build environment
         export BUILD_USERNAME=${{ github.actor }} ; \
         export BUILD_HOSTNAME=crave ; \
