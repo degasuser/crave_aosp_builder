@@ -512,8 +512,8 @@ jobs:
         fi && \
 
         # Select the prebuilt header provider in shared hardware consumers.
-        bash device/xiaomi/degas/tools/apply-build-patches.sh && \
-        python3 device/xiaomi/degas/tools/check-kernel-headers.py . && \
+        bash device/xiaomi/degas/tools/apply-build-patches.sh || exit 1; \
+        python3 device/xiaomi/degas/tools/check-kernel-headers.py . || exit 1; \
 
         # Set up build environment
         export BUILD_USERNAME=${{ github.actor }} ; \
