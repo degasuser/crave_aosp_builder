@@ -9,7 +9,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Read Crave log command options
+      - name: Fetch Crave build 307926 log
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
@@ -19,5 +19,25 @@ jobs:
           chmod +x "$RUNNER_TEMP/crave"
           umask 077
           envsubst < crave.conf.sample > "$RUNNER_TEMP/crave-diagnostics.conf"
-          "$RUNNER_TEMP/crave" -n -c "$RUNNER_TEMP/crave-diagnostics.conf" getlog --help
-          "$RUNNER_TEMP/crave" -n -c "$RUNNER_TEMP/crave-diagnostics.conf" list
+          "$RUNNER_TEMP/crave" -n -c "$RUNNER_TEMP/crave-diagnostics.conf" getlog --projectID 99 --jobID 307926 > "$RUNNER_TEMP/crave-307926.log" 2>&1
+      - name: Show failing commands
+        if: always()
+        shell: python
+        run: |
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'crave-307926.log'
+          if not p.exists():
+              raise SystemExit('Crave did not produce a log')
+          lines=p.read_text(errors='replace').splitlines()
+          failures=[i for i,l in enumerate(lines) if 'FAILED:' in l or 'ninja: error:' in l]
+          print('Log bytes:',p.stat().st_size,'failed command sections:',len(failures))
+          for i in failures:
+              print('\n'.join(lines[max(0,i-2):i+50]))
+          print('Final log lines:')
+          print('\n'.join(lines[-80:]))
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crave-307926-log
+          path: ${{ runner.temp }}/crave-307926.log
