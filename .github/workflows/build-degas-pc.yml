@@ -1,0 +1,106 @@
+name: Build degas (home PC)
+
+on:
+  workflow_dispatch:
+    inputs:
+      MANIFEST_BRANCH:
+        description: "local_manifests branch:"
+        required: true
+        default: 'claude/build-errors-1d3dp1'
+      BUILD_TYPE:
+        description: 'Type of build:'
+        required: true
+        default: 'userdebug'
+        type: choice
+        options:
+          - 'eng'
+          - 'userdebug'
+          - 'user'
+      SYNC:
+        description: 'Run repo sync before building?'
+        required: true
+        default: true
+        type: boolean
+      CLEAN_BUILD:
+        description: 'Remove out/ before building?'
+        required: true
+        default: false
+        type: boolean
+      SHUTDOWN:
+        description: 'Power the PC off when done?'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build:
+    runs-on: [self-hosted, degas-pc]
+    timeout-minutes: 720
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Sync sources
+        if: ${{ inputs.SYNC }}
+        run: |
+          cd "$DEGAS_SRC_DIR"
+          export PATH="$HOME/bin:$PATH"
+          rm -rf .repo/local_manifests
+          git clone --depth 1 -b "${{ inputs.MANIFEST_BRANCH }}" \
+              https://github.com/degasuser/local_manifests .repo/local_manifests
+          repo sync -c -j"$(nproc)" --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune
+          bash device/xiaomi/degas/tools/apply-build-patches.sh
+          python3 device/xiaomi/degas/tools/check-kernel-headers.py .
+
+      - name: Clean out/
+        if: ${{ inputs.CLEAN_BUILD }}
+        run: rm -rf "$DEGAS_SRC_DIR/out"
+
+      - name: Build
+        run: |
+          cd "$DEGAS_SRC_DIR"
+          export BUILD_USERNAME=${{ github.actor }}
+          export BUILD_HOSTNAME=degas-pc
+          source build/envsetup.sh
+          breakfast degas ${{ inputs.BUILD_TYPE }}
+          python3 device/xiaomi/degas/tools/check-camera-prebuilts.py vendor/xiaomi/degas
+          python3 device/xiaomi/degas/tools/check-graphics-common.py vendor/xiaomi/degas
+          python3 device/xiaomi/degas/tools/check-vintf-vendor.py vendor/xiaomi/degas
+          m bacon
+
+      - name: Collect output
+        id: out
+        run: |
+          cd "$DEGAS_SRC_DIR"
+          OUT=out/target/product/degas
+          ZIP="$(ls -t $OUT/lineage-*.zip | head -1)"
+          mkdir -p "$RUNNER_TEMP/release"
+          cp "$ZIP" "$ZIP.sha256sum" $OUT/boot.img $OUT/init_boot.img $OUT/vendor_boot.img \
+              $OUT/dtbo.img $OUT/vbmeta.img "$RUNNER_TEMP/release/" 2>/dev/null || true
+          echo "name=$(basename "$ZIP" .zip)" >> "$GITHUB_OUTPUT"
+          echo "dir=$RUNNER_TEMP/release" >> "$GITHUB_OUTPUT"
+
+      - name: Copy error log
+        if: failure()
+        run: cp "$DEGAS_SRC_DIR/out/error.log" "$RUNNER_TEMP/error.log" || true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.out.outputs.name }}-${{ github.run_id }}
+          name: ${{ steps.out.outputs.name }}
+          files: ${{ steps.out.outputs.dir }}/*
+
+      - name: Upload error log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-log-${{ github.run_id }}
+          path: ${{ runner.temp }}/error.log
+          if-no-files-found: ignore
+
+      - name: Power off
+        if: ${{ always() && inputs.SHUTDOWN }}
+        run: sudo /usr/sbin/shutdown -h +2
